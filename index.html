@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SynthEdit Dataset Viewer</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #f1f5f9; color: #1e293b; }
+
+.header { background: #1e293b; color: #fff; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
+.header h1 { margin: 0; font-size: 1.4rem; font-weight: 600; }
+.stats { display: flex; gap: 1.5rem; font-size: 0.85rem; opacity: 0.8; }
+
+.filters { padding: 0.75rem 2rem; background: #fff; border-bottom: 1px solid #e2e8f0; display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; }
+.filters select, .filters input { padding: 0.45rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; background: #fff; }
+.filters input { min-width: 180px; }
+.filter-count { margin-left: auto; color: #64748b; font-size: 0.85rem; white-space: nowrap; }
+
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(560px, 1fr)); gap: 1.25rem; padding: 1.5rem 2rem; }
+@media (max-width: 640px) { .card-grid { grid-template-columns: 1fr; padding: 1rem; } }
+
+.card { background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); cursor: pointer; transition: box-shadow 0.15s; }
+.card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.13); }
+.card-images { display: flex; gap: 2px; background: #e2e8f0; }
+.card-images .img-wrap { flex: 1; position: relative; }
+.card-images img { width: 100%; display: block; aspect-ratio: 16/9; object-fit: cover; }
+.img-label { position: absolute; top: 4px; left: 4px; background: rgba(0,0,0,0.6); color: #fff; padding: 1px 8px; border-radius: 4px; font-size: 0.7rem; }
+.card-body { padding: 0.6rem 0.85rem 0.75rem; }
+.card-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.card-meta { font-size: 0.78rem; color: #64748b; margin-top: 0.3rem; }
+
+.badge { display: inline-block; padding: 1px 10px; border-radius: 12px; font-size: 0.72rem; font-weight: 600; color: #fff; text-transform: uppercase; letter-spacing: 0.03em; }
+.badge-movement   { background: #3b82f6; }
+.badge-rotation   { background: #8b5cf6; }
+.badge-scale      { background: #06b6d4; }
+.badge-camera     { background: #f59e0b; }
+.badge-lighting   { background: #eab308; }
+.badge-removal    { background: #ef4444; }
+.badge-addition   { background: #22c55e; }
+
+.tag { font-size: 0.78rem; color: #475569; background: #f1f5f9; padding: 1px 8px; border-radius: 4px; }
+
+.pagination { display: flex; justify-content: center; align-items: center; gap: 0.75rem; padding: 1rem 2rem 2rem; }
+.pagination button { padding: 0.4rem 1rem; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.85rem; }
+.pagination button:disabled { opacity: 0.4; cursor: default; }
+.pagination span { font-size: 0.85rem; color: #64748b; }
+
+/* Modal */
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.88); display: none; z-index: 100; flex-direction: column; align-items: center; justify-content: center; }
+.modal.active { display: flex; }
+.modal-close { position: absolute; top: 12px; right: 18px; color: #fff; font-size: 2rem; cursor: pointer; z-index: 101; line-height: 1; }
+.modal-info { color: #cbd5e1; font-size: 0.85rem; margin-bottom: 0.5rem; text-align: center; max-width: 90vw; }
+.modal-images { display: flex; gap: 6px; max-width: 95vw; max-height: 82vh; }
+.modal-images .mi-wrap { position: relative; flex: 1; display: flex; }
+.modal-images img { max-height: 80vh; max-width: 47vw; object-fit: contain; border-radius: 4px; }
+.modal-images .img-label { top: 6px; left: 6px; font-size: 0.8rem; padding: 2px 10px; }
+.modal-nav { position: absolute; top: 50%; transform: translateY(-50%); color: #fff; font-size: 2.5rem; cursor: pointer; padding: 0.5rem; user-select: none; z-index: 101; }
+.modal-nav.prev { left: 10px; }
+.modal-nav.next { right: 10px; }
+.modal-nav:hover { color: #93c5fd; }
+.modal-counter { color: #94a3b8; font-size: 0.8rem; margin-top: 0.5rem; }
+
+.empty { text-align: center; padding: 4rem 2rem; color: #94a3b8; font-size: 1.1rem; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>SynthEdit Dataset Viewer</h1>
+  <div class="stats" id="stats"></div>
+</div>
+
+<div class="filters">
+  <select id="f-edit"><option value="">All edit types</option></select>
+  <select id="f-room"><option value="">All rooms</option></select>
+  <select id="f-object"><option value="">All objects</option></select>
+  <input id="f-search" type="text" placeholder="Search...">
+  <span class="filter-count" id="filter-count"></span>
+</div>
+
+<div class="card-grid" id="grid"></div>
+<div class="pagination" id="pagination"></div>
+
+<div class="modal" id="modal">
+  <span class="modal-close" id="modal-close">&times;</span>
+  <span class="modal-nav prev" id="modal-prev">&#8249;</span>
+  <span class="modal-nav next" id="modal-next">&#8250;</span>
+  <div class="modal-info" id="modal-info"></div>
+  <div class="modal-images" id="modal-images"></div>
+  <div class="modal-counter" id="modal-counter"></div>
+</div>
+
+<script>
+let DATA = null;
+let filtered = [];
+let page = 0;
+const PER_PAGE = 20;
+let modalIdx = -1;
+
+async function init() {
+  const r = await fetch("data.json");
+  DATA = await r.json();
+  populateFilters();
+  document.getElementById("stats").innerHTML =
+    `<span>${DATA.stats.total_annotations} edits</span>` +
+    `<span>${DATA.stats.scenes} scenes</span>` +
+    `<span>${DATA.stats.room_types.length} rooms</span>`;
+  applyFilters();
+}
+
+function populateFilters() {
+  fill("f-edit", DATA.stats.edit_types, "All edit types");
+  fill("f-room", DATA.stats.room_types, "All rooms");
+  fill("f-object", DATA.stats.object_types, "All objects");
+}
+
+function fill(id, items, placeholder) {
+  const el = document.getElementById(id);
+  el.innerHTML = `<option value="">${placeholder}</option>` +
+    items.map(i => `<option value="${i}">${i}</option>`).join("");
+}
+
+function applyFilters() {
+  const et = document.getElementById("f-edit").value;
+  const rt = document.getElementById("f-room").value;
+  const ot = document.getElementById("f-object").value;
+  const q = document.getElementById("f-search").value.toLowerCase();
+  filtered = DATA.annotations.filter(a => {
+    if (et && a.edit_type !== et) return false;
+    if (rt && a.room_type !== rt) return false;
+    if (ot && a.object_type !== ot) return false;
+    if (q) {
+      const txt = (a.object_type + " " + a.scene_id + " " + a.object + " " +
+        JSON.stringify(a.details) + " " + a.edit_type + " " + a.room_type).toLowerCase();
+      if (!txt.includes(q)) return false;
+    }
+    return true;
+  });
+  page = 0;
+  render();
+}
+
+function render() {
+  const start = page * PER_PAGE;
+  const slice = filtered.slice(start, start + PER_PAGE);
+  const grid = document.getElementById("grid");
+  if (slice.length === 0) {
+    grid.innerHTML = '<div class="empty">No matching edits found.</div>';
+  } else {
+    grid.innerHTML = slice.map(a => cardHTML(a)).join("");
+  }
+  document.getElementById("filter-count").textContent =
+    `Showing ${Math.min(start + 1, filtered.length)}-${Math.min(start + PER_PAGE, filtered.length)} of ${filtered.length}`;
+  renderPagination();
+}
+
+function cardHTML(a) {
+  const details = Object.entries(a.details || {}).map(([k,v]) =>
+    `<span class="tag">${k}: ${v}</span>`).join(" ");
+  const meta = Object.entries(a.metadata || {}).filter(([,v]) => typeof v === "number")
+    .map(([k,v]) => `${fmtKey(k)}: ${v.toFixed(2)}`).join(" | ");
+  return `<div class="card" onclick="openModal(${a.id})">
+    <div class="card-images">
+      <div class="img-wrap"><span class="img-label">Before</span><img src="${a.before}" loading="lazy"></div>
+      <div class="img-wrap"><span class="img-label">After</span><img src="${a.after}" loading="lazy"></div>
+    </div>
+    <div class="card-body">
+      <div class="card-row">
+        <span class="badge badge-${a.edit_type}">${a.edit_type}</span>
+        <span class="tag">${a.object_type}</span>
+        <span class="tag">${a.room_type}</span>
+        <span class="tag">${a.scene_id}</span>
+        ${details}
+      </div>
+      ${meta ? `<div class="card-meta">${meta}</div>` : ""}
+    </div>
+  </div>`;
+}
+
+function fmtKey(k) {
+  return k.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function renderPagination() {
+  const total = Math.ceil(filtered.length / PER_PAGE);
+  const el = document.getElementById("pagination");
+  if (total <= 1) { el.innerHTML = ""; return; }
+  el.innerHTML = `<button onclick="goPage(${page-1})" ${page===0?"disabled":""}>Prev</button>` +
+    `<span>Page ${page+1} of ${total}</span>` +
+    `<button onclick="goPage(${page+1})" ${page>=total-1?"disabled":""}>Next</button>`;
+}
+
+function goPage(p) { page = p; render(); window.scrollTo({top: 0, behavior: "smooth"}); }
+
+// Modal
+function openModal(id) {
+  modalIdx = filtered.findIndex(a => a.id === id);
+  if (modalIdx < 0) return;
+  showModal();
+}
+
+function showModal() {
+  const a = filtered[modalIdx];
+  if (!a) return;
+  const details = Object.entries(a.details || {}).map(([k,v]) => `${k}: ${v}`).join(", ");
+  const meta = Object.entries(a.metadata || {}).filter(([,v]) => typeof v === "number")
+    .map(([k,v]) => `${fmtKey(k)}: ${v.toFixed(2)}`).join(" | ");
+  document.getElementById("modal-info").innerHTML =
+    `<strong>${a.edit_type}</strong> &mdash; ${a.object_type} &mdash; ${a.room_type} / ${a.scene_id}` +
+    (details ? ` &mdash; ${details}` : "") + (meta ? `<br>${meta}` : "");
+  document.getElementById("modal-images").innerHTML =
+    `<div class="mi-wrap"><span class="img-label">Before</span><img src="${a.before}"></div>` +
+    `<div class="mi-wrap"><span class="img-label">After</span><img src="${a.after}"></div>`;
+  document.getElementById("modal-counter").textContent = `${modalIdx + 1} / ${filtered.length}`;
+  document.getElementById("modal").classList.add("active");
+}
+
+function closeModal() { document.getElementById("modal").classList.remove("active"); }
+
+document.getElementById("modal-close").onclick = closeModal;
+document.getElementById("modal").onclick = e => { if (e.target.id === "modal") closeModal(); };
+document.getElementById("modal-prev").onclick = e => { e.stopPropagation(); if (modalIdx > 0) { modalIdx--; showModal(); } };
+document.getElementById("modal-next").onclick = e => { e.stopPropagation(); if (modalIdx < filtered.length - 1) { modalIdx++; showModal(); } };
+
+document.addEventListener("keydown", e => {
+  if (!document.getElementById("modal").classList.contains("active")) return;
+  if (e.key === "Escape") closeModal();
+  if (e.key === "ArrowLeft" && modalIdx > 0) { modalIdx--; showModal(); }
+  if (e.key === "ArrowRight" && modalIdx < filtered.length - 1) { modalIdx++; showModal(); }
+});
+
+document.getElementById("f-edit").onchange = applyFilters;
+document.getElementById("f-room").onchange = applyFilters;
+document.getElementById("f-object").onchange = applyFilters;
+document.getElementById("f-search").oninput = applyFilters;
+
+init();
+</script>
+</body>
+</html>
