@@ -72,6 +72,7 @@ body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background:
 </div>
 
 <div class="filters">
+  <select id="f-dataset"><option value="">All datasets</option></select>
   <select id="f-edit"><option value="">All edit types</option></select>
   <select id="f-room"><option value="">All rooms</option></select>
   <select id="f-object"><option value="">All objects</option></select>
@@ -110,9 +111,13 @@ async function init() {
 }
 
 function populateFilters() {
+  fill("f-dataset", DATA.stats.datasets, "All datasets");
   fill("f-edit", DATA.stats.edit_types, "All edit types");
   fill("f-room", DATA.stats.room_types, "All rooms");
   fill("f-object", DATA.stats.object_types, "All objects");
+  // Hide dataset filter if only one dataset
+  document.getElementById("f-dataset").style.display =
+    DATA.stats.datasets.length <= 1 ? "none" : "";
 }
 
 function fill(id, items, placeholder) {
@@ -122,11 +127,13 @@ function fill(id, items, placeholder) {
 }
 
 function applyFilters() {
+  const ds = document.getElementById("f-dataset").value;
   const et = document.getElementById("f-edit").value;
   const rt = document.getElementById("f-room").value;
   const ot = document.getElementById("f-object").value;
   const q = document.getElementById("f-search").value.toLowerCase();
   filtered = DATA.annotations.filter(a => {
+    if (ds && a.dataset !== ds) return false;
     if (et && a.edit_type !== et) return false;
     if (rt && a.room_type !== rt) return false;
     if (ot && a.object_type !== ot) return false;
@@ -230,6 +237,7 @@ document.addEventListener("keydown", e => {
   if (e.key === "ArrowRight" && modalIdx < filtered.length - 1) { modalIdx++; showModal(); }
 });
 
+document.getElementById("f-dataset").onchange = applyFilters;
 document.getElementById("f-edit").onchange = applyFilters;
 document.getElementById("f-room").onchange = applyFilters;
 document.getElementById("f-object").onchange = applyFilters;
